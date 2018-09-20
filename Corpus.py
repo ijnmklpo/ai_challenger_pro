@@ -42,12 +42,14 @@ class CorpusBleach(object):
     ind_docs = None
     vocab = None    # 不大好存成dataframe。如果要存成csv，只能用encoding='utf-8'来存，这时候直接用pd.read_csv()读取，会取不到空格对应的行，如果用普通文件打开然后读，因为utf-8会转义一些特殊字符，会导致一些特殊字符没法正常读取，很僵。
 
-    def __init__(self, file_path, text_col_name):
+    def __init__(self, file_path, text_col_name, limit_len=0):
         """
         读入整个训练集数据，为了降低oov对线上结果的影响，只用训练集数据进行构造词典
         """
         self.docs = pd.read_csv(file_path, encoding='utf-8')
         self.text_col = text_col_name
+        if limit_len > 0:
+            self.docs = self.docs[0: limit_len]
         print('get corpus!')
 
 
@@ -64,7 +66,7 @@ class CorpusBleach(object):
         for i, row in self.docs.iterrows():
             if i % 1000 == 0:
                 print('remove emotions: %d' % (i))
-            row[self.text_col] = utils.text_remove_emotions(row[self.text_col], emotion_filter)
+            self.docs.loc[[i], [self.text_col]] = utils.text_remove_emotions(row[self.text_col], emotion_filter)
 
 
     def shrink_punctuations(self):
@@ -77,13 +79,13 @@ class CorpusBleach(object):
         :return:
         """
         print('shrink punctuations...')
-        reg_exp = r' |(\*|\!|\@|\#|\$|\%|\^|\&|\*|\=|\+|\-|\<|\{|\}|\[|\]|\:|\'|\"|\(|\)|\#|\/|\\\\|\||\?|\.|\,|\<|\>|！|、|。|，|《|》|【|】|~|￥|（|）|——|_|\||\||…|·)\1+'
+        reg_exp = r' |(\*|\!|\@|\#|\$|\%|\^|\&|\*|\=|\+|\-|\<|\{|\}|\[|\]|\:|\'|\"|\(|\)|\#|\/|\\\\|\||\?|\.|\,|\<|\>|！|、|。|，|《|》|【|】|~|￥|（|）|——|_|\||\||…|·|\s)\1+'
         pattern = re.compile(reg_exp)
 
         for i, row in self.docs.iterrows():
             if i % 1000 == 0:
                 print('shrink punctuations: %d' % (i))
-            row[self.text_col] = utils.text_shrink_punctuations(row[self.text_col], pattern)  # \1表示表达式中第一个括号里匹配到的内容
+            self.docs.loc[[i], [self.text_col]] = utils.text_shrink_punctuations(row[self.text_col], pattern)  # \1表示表达式中第一个括号里匹配到的内容
 
 
     def remove_useless_chars(self, chars=' \'\"\f\n\r\t\v\\/~({<[【+=-_、@#￥%……&*^'):
@@ -97,7 +99,7 @@ class CorpusBleach(object):
         for i, row in self.docs.iterrows():
             if i % 1000 == 0:
                 print('remove useless chars: %d' % (i))
-                row[self.text_col] = utils.text_remove_useless_chars(row[self.text_col], chars=chars)
+            self.docs.loc[[i], [self.text_col]] = utils.text_remove_useless_chars(row[self.text_col], chars=chars)
 
 
     def cht_to_chs(self):
@@ -109,10 +111,10 @@ class CorpusBleach(object):
         for i, row in self.docs.iterrows():
             if i % 1000 == 0:
                 print('transform to simplified: %d' % (i))
-            row[self.text_col] = utils.text_cht_to_chs(row[self.text_col])
+            self.docs.loc[[i], [self.text_col]] = utils.text_cht_to_chs(row[self.text_col])
 
 
-    def remove_short_text(self, min_len=10):
+    def remove_short_text(self, min_len=0):
         """
         去掉比较短的文本用来训练，这个在训练集里可以用，测试集就不用了。
         :param min_len:
@@ -123,7 +125,7 @@ class CorpusBleach(object):
         for i, row in self.docs.iterrows():
             if i % 1000 == 0:
                 print('remove short text: %d' % (i))
-            if len(row[self.text_col]) <= 10:
+            if len(row[self.text_col]) <= min_len:
                 remove_idx_list.append(i)
         print('drop idxs:', remove_idx_list)
         self.docs.drop(self.docs.index[remove_idx_list], inplace=True)
@@ -220,15 +222,14 @@ class CorpusBleach(object):
 
 
 if __name__ == '__main__':
-    ## 对语料进行预处理，未分词
-    cps = CorpusBleach(global_configs.raw_corpus_path,text_col_name='content')
-    print(cps.docs.describe())
-    print(cps.docs.head())
-    cps.flow_process('./data_preprocess/emotion_dict.txt')
-    cps.docs.to_csv(global_configs.preprocessed_corpus_path, index=False, sep=',')
-
-    # # 对预处理后的语料进行分词
-    # cps = CorpusBleach(global_configs.preprocessed_corpus_path, text_col_name='content')
+    # ## 对语料进行预处理，未分词
+    # cps = CorpusBleach(global_configs.raw_corpus_path,text_col_name='content')
+    # print(cps.docs.describe())
     # print(cps.docs.head())
-    #
+    # cps.flow_process('./data_preprocess/emotion_dict.txt')
     # cps.docs.to_csv(global_configs.preprocessed_corpus_path, index=False, sep=',')
+
+
+    # 对预处理后的语料进行分词
+    cps = CorpusBleach(global_configs.preprocessed_corpus_path, text_col_name='content')
+    print(cps.docs.head())
