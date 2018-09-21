@@ -131,6 +131,22 @@ class CorpusBleach(object):
         self.docs.drop(self.docs.index[remove_idx_list], inplace=True)
 
 
+    def label_assemble(self):
+        '''
+        将语料中多个label合并到一个list里
+        :return:
+        '''
+        print('label assemble...')
+        label_list = []
+        for i, row in self.docs.iterrows():
+            if i % 1000 == 0:
+                print('assemble label in doc: %d' % (i))
+            label_list.append([row[]])
+        print('drop idxs:', remove_idx_list)
+        self.docs.drop(self.docs.index[remove_idx_list], inplace=True)
+
+
+
     def flow_process(self, emotion_path):
         """
         整体进行语料的预处理，并不包含保存
@@ -143,45 +159,6 @@ class CorpusBleach(object):
         self.cht_to_chs()
         self.remove_short_text()
 
-
-
-    def corpus_merge(self, current_label, other_doc_paths, labels):
-        '''
-        把几个csv文件的语料合并成一个（在行上堆叠）
-        :param current_label:
-        :param other_doc_paths:
-        :param labels:
-        :return:
-        '''
-        tot_corpus = self.docs
-        tot_corpus_len = len(self.docs.values)
-        tot_labels = pd.DataFrame([current_label for _ in range(tot_corpus_len)], columns=['label'])
-        for corpus_path, the_label in zip(other_doc_paths, labels):
-            try:
-                cur_corpus = pd.read_csv(corpus_path, encoding='utf-8')
-            except:
-                open_f = open(corpus_path, 'r')
-                text_list = []
-                text_col = ''
-                for i, line in enumerate(open_f):
-                    if i == 0:
-                        text_col = line.strip()
-                    else:
-                        text_list.append(line.strip())
-                cur_corpus = pd.DataFrame(text_list, columns=[text_col])
-                open_f.close()
-            cur_corpus_len = len(cur_corpus)
-            cur_labels = pd.DataFrame([the_label for _ in range(cur_corpus_len)], columns=['label'])
-            tot_corpus = pd.concat([tot_corpus, cur_corpus], axis=0)
-            tot_labels = pd.concat([tot_labels, cur_labels], axis=0)
-        tot_corpus.reset_index(drop=True, inplace=True)
-        print('tot corpus len:', len(tot_corpus.values))
-        tot_labels.reset_index(drop=True, inplace=True)
-        doc_num = len(tot_corpus.values)
-        id_df = pd.DataFrame([i for i in range(doc_num)], columns=['id'])
-        rest_corpus = pd.concat([id_df, tot_corpus, tot_labels], axis=1)
-        rest_corpus.reset_index(drop=True, inplace=True)
-        return rest_corpus
 
 
     def word_cut(self):
@@ -232,4 +209,4 @@ if __name__ == '__main__':
 
     # 对预处理后的语料进行分词
     cps = CorpusBleach(global_configs.preprocessed_corpus_path, text_col_name='content')
-    print(cps.docs.head())
+    print(cps.docs['content'][35])
