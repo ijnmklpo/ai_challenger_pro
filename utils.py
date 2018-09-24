@@ -12,6 +12,7 @@ try:
     import data_preprocess.lanconv as lanconv
 except:
     import lanconv as lanconv
+import tensorflow as tf
 import re
 import logging
 import pandas as pd
@@ -50,16 +51,22 @@ def text_shrink_punctuations(text, pattern=None):
 
 def text_remove_useless_chars(text, chars=None):
     '''
-    除去句子前后无用的特殊符号，并把句子中重复的空白字符都缩减成1个（这个功能其实在text_shrink_punctuations里面已经做过了）。
+    除去句子前后无用的特殊符号
 
     :param text: str。要处理的文本。
-    :param chars: str。要匹配的正则模式。
+    :param chars: str。要匹配的strip模式。
     :return:
     '''
     if chars is None:
         chars = ' \'\"\f\n\r\t\v\\/~({<[【+=-_、@#￥%……&*^'
 
     text_out = text.strip(chars)  # 去掉前后无用的字符
+
+    pattern2 = re.compile(r' |\'|\"|\s|\r|\f|\n|\t|\v')
+    text_out = pattern2.sub(r'。', text_out)
+    pattern3 = re.compile(r',')
+    text_out = pattern3.sub(r'，', text_out)
+
     return text_out
 
 
@@ -126,6 +133,20 @@ def one_sentence_transform(comment, vocab):
 
 
 
+def get_optimizer(loss, learning_rate=0.001):
+    optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(loss)
+    # optimizer = tf.train.MomentumOptimizer(learning_rate=learning_rate, momentum=0.9).minimize(loss)
+    return optimizer
+
+
+def accuracy(logits, labels, begin, size):
+    p = tf.slice(logits, begin, size)
+
+    max_idx_p = tf.argmax(p, 1)
+    max_idx_p = tf.cast(max_idx_p, dtype=tf.int32)
+    correct_pred = tf.equal(max_idx_p, labels)
+    acc = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
+    return acc
 
 
 
