@@ -22,7 +22,7 @@ data_batch_size = 50
 node_num = 100
 the_keep_prob = 0.5
 l2_reg = 3.0
-learning_rate = 0.01
+learning_rate = 0.00007
 '''
 配置日志
 版本1：
@@ -31,13 +31,7 @@ node_num = 100
 keep_prob = 0.5
 l2_reg = 3.0
 learning_rate = 0.01
-结果：迭代2w次左右，loss收敛在0.38左右，收敛期间震荡严重
-
-版本2：
-版本1微调，改lr:0.01 -> 0.003
-结果：迭代5w次，train loss收敛在0.34，valid loss收敛在0.38左右，收敛期间较为稳定。好像还能再收，text cnn收敛这么慢的吗
-这也能过拟合。。。。效果不好啊
-
+结果：迭代20w次，似乎还能继续往下降；lr->0.002训练至30w看看，20.5w的时候valid loss降到0.36+了，30w的时候vl降到了0.36；从30w开始lr->0.001训练到40w看看,40w基本也还是维持在0.36;再把lr->0.00007，跑60w次迭代，最终执行了100w次迭代，vl收敛在0.36，似乎真的没法再下降了，这版数据就这样吧。
 
 '''
 
@@ -159,13 +153,13 @@ class CNN_Model(object):
 if __name__ == '__main__':
     # 载入训练集，并构造一个迭代器
     train_tfrecord_path_list = [global_configs.train_tfrecord_corpus_path]
-    train_dataloader = Corpus.CorpusLoader(train_tfrecord_path_list, batch_size=data_batch_size, repeat_epoch_num=100, shuffle_buffer_size=150000)
+    train_dataloader = Corpus.CorpusLoader(train_tfrecord_path_list, batch_size=data_batch_size, repeat_epoch_num=300, shuffle_buffer_size=150000)
     train_dataset = train_dataloader.launch_tfrecorddataset()
     train_iterator = train_dataset.make_one_shot_iterator()
 
     # 载入验证集，并构造一个迭代器
     valid_tfrecord_path_list = [global_configs.valid_tfrecord_corpus_path]
-    valid_dataloader = Corpus.CorpusLoader(valid_tfrecord_path_list, batch_size=data_batch_size, repeat_epoch_num=100, shuffle_buffer_size=20000)
+    valid_dataloader = Corpus.CorpusLoader(valid_tfrecord_path_list, batch_size=data_batch_size, repeat_epoch_num=200, shuffle_buffer_size=20000)
     valid_dataset = valid_dataloader.launch_tfrecorddataset()
     valid_iterator = valid_dataset.make_one_shot_iterator()
 
@@ -189,26 +183,17 @@ if __name__ == '__main__':
     # =====================/模型数据流/===========================
 
     # ====================== 训练分支 ============================
-    train_loss = model.loss_define(logits, label_onehot_batch)
-    tf.summary.scalar('train_loss', train_loss)
-    train_merged = tf.summary.merge(tf.get_collection(tf.GraphKeys.SUMMARIES, scope=train_loss_scope))
+    loss = model.loss_define(logits, label_onehot_batch)
+    tf.summary.scalar('loss', loss)
     model_preds = model.prediction(logits)
     real_labels = model.prediction(label_onehot_batch)
-    optimizer = model.get_optimizer(train_loss, learning_rate=learning_rate)
+    optimizer = model.get_optimizer(loss, learning_rate=learning_rate)
     # =====================/ 训练分支 /===========================
-
-    # ====================== 验证分支 ======================
-    with tf.name_scope('valid_loss') as valid_loss_scope:
-        valid_loss = model.loss_define(logits, label_onehot_batch)
-        tf.summary.scalar('valid_loss', valid_loss) # 指定一下要搜集的项
-        valid_merged = tf.summary.merge(tf.get_collection(tf.GraphKeys.SUMMARIES, scope=valid_loss_scope))  #将指定scope下的搜集项汇集
-    # =====================/ 验证分支 /=====================
 
     # ===================== 要监控的变量 =====================
     summary_loss_flag = tf.placeholder(dtype=tf.int32)
     # tensorboard summary将指定的监控的值收集起来
-    # merged = tf.summary.merge_all()
-
+    merged = tf.summary.merge_all()
     # ===================== 要监控的变量 =====================
 
     # ================指定已有的训练文件================
@@ -244,25 +229,27 @@ if __name__ == '__main__':
 
 
         for step in range(init_step, init_step + 10000001):
-            [loss_out, _] = sess.run([train_loss, optimizer], feed_dict={handle: train_iterator_handle, keep_prob: the_keep_prob})
+            [loss_out, _] = sess.run([loss, optimizer], feed_dict={handle: train_iterator_handle, keep_prob: the_keep_prob})
             # =============== 保存summary ===============
-            if step % 100 == 0:
-                [rs1, train_loss_out, valid_loss_out] = sess.run([train_merged, train_loss, valid_loss], feed_dict={handle: train_iterator_handle, keep_prob: the_keep_prob})
-                print(step, train_loss_out, valid_loss_out)
-                summary_writer.add_summary(rs1, step)
-                [rs2, train_loss1_out, valid_loss1_out] = sess.run([valid_merged, train_loss, valid_loss], feed_dict={handle: valid_iterator_handle, keep_prob: the_keep_prob})
-                print(step, train_loss1_out, valid_loss1_out)
-                summary_writer.add_summary(rs2, step)
+            if step % 99 == 0:
+                [rs1, train_loss_out] = sess.run([merged, loss], feed_dict={handle: train_iterator_handle, keep_prob: the_keep_prob})
+                print(step, train_loss_out)
+                summary_train_writer.add_summary(rs1, step)
+            elif step % 100 == 0:
+                [rs2, valid_loss_out] = sess.run([merged, loss], feed_dict={handle: valid_iterator_handle, keep_prob: the_keep_prob})
+                print(step, valid_loss_out)
+                summary_valid_writer.add_summary(rs2, step)
             # ==============/ 保存summary /==============
 
             # ================保存模型====================
-            if step % 20000 == 0:
+            if step % 100000 == 0:
                 saver.save(sess, os.path.join(train_dir, 'model.ckpt'), global_step=step)
-                if step == init_step + 20000 * 5:
+                if step == init_step + 10000 * 50:
                     break
             # ===============/保存模型/===================
 
-        summary_writer.close()
+        summary_train_writer.close()
+        summary_valid_writer.close()
         coord.request_stop()
         coord.join(threads)
 
