@@ -20,9 +20,9 @@ import utils as ryh_utils
 ## 超参配置
 data_batch_size = 50
 node_num = 100
-the_keep_prob = 0.5
+the_keep_prob = 0.9
 l2_reg = 3.0
-learning_rate = 0.00007
+learning_rate = 0.0001
 '''
 配置日志
 版本1：
@@ -31,9 +31,8 @@ node_num = 100
 keep_prob = 0.5
 l2_reg = 3.0
 learning_rate = 0.01
-结果：迭代20w次，似乎还能继续往下降；lr->0.002训练至30w看看，20.5w的时候valid loss降到0.36+了，30w的时候vl降到了0.36；从30w开始lr->0.001训练到40w看看,40w基本也还是维持在0.36;再把lr->0.00007，跑60w次迭代，最终执行了100w次迭代，vl收敛在0.36，似乎真的没法再下降了，这版数据就这样吧。
+结果：迭代20w次，似乎还能继续往下降；lr->0.002训练至30w看看，20.5w的时候valid loss降到0.36+了，30w的时候vl降到了0.36；从30w开始lr->0.001训练到40w看看,40w基本也还是维持在0.36;再把lr->0.00007，跑60w次迭代，最终执行了100w次迭代，vl收敛在0.36，似乎真的没法再下降了，这版数据就这样吧。（验证集词典貌似弄错了）
 
-测试desktop
 '''
 
 model_root_dir = './models/text_cnn/version1'
@@ -164,6 +163,14 @@ if __name__ == '__main__':
     valid_dataset = valid_dataloader.launch_tfrecorddataset()
     valid_iterator = valid_dataset.make_one_shot_iterator()
 
+    # 载入测试集，并构造一个迭代器
+    valid_tfrecord_path_list = [global_configs.valid_tfrecord_corpus_path]
+    valid_dataloader = Corpus.CorpusLoader(valid_tfrecord_path_list, batch_size=data_batch_size, repeat_epoch_num=200,
+                                           shuffle_buffer_size=20000)
+    valid_dataset = valid_dataloader.launch_tfrecorddataset()
+    valid_iterator = valid_dataset.make_one_shot_iterator()
+
+
     # =================== 用handle导入，feedble ===================
     # 构造一个可导入(feedble)的句柄占位符，可以通过这个将训练集的句柄或者验证集的句柄传入
     handle = tf.placeholder(tf.string, shape=[])
@@ -214,7 +221,7 @@ if __name__ == '__main__':
         # if os.path.exists(summary_dir) == True:
         #     shutil.rmtree(summary_dir)
         summary_train_writer = tf.summary.FileWriter(summary_train_dir, sess.graph)
-        summary_valid_writer = tf.summary.FileWriter(summary_valid_dir, sess.graph)
+        summary_valid_writer = tf.summary.FileWriter(summary_valid_dir) # 这个就不用加上图了，跟上面一样的，会覆盖
         # =================/ 配置tensorboard文件 /=================
 
         # 获得训练集和验证集的引用句柄，后面导入数据到模型用
@@ -228,26 +235,47 @@ if __name__ == '__main__':
             saver.restore(sess=sess, save_path=ckpt.model_checkpoint_path)
         # ===============/确认已有模型，load/===================
 
+        # # ============================ 训练阶段 ============================
+        # for step in range(init_step, init_step + 10000001):
+        #     [loss_out, _] = sess.run([loss, optimizer], feed_dict={handle: train_iterator_handle, keep_prob: the_keep_prob})
+        #     # =============== 保存summary ===============
+        #     if step % 99 == 0:
+        #         pass
+        #     elif step % 100 == 0 and step != 0:
+        #         [rs1, train_loss_out] = sess.run([merged, loss], feed_dict={handle: train_iterator_handle, keep_prob: the_keep_prob})
+        #         print(step, train_loss_out)
+        #         summary_train_writer.add_summary(rs1, step)
+        #         [rs2, valid_loss_out] = sess.run([merged, loss], feed_dict={handle: valid_iterator_handle, keep_prob: 1.0})
+        #         print('------------------------valid')
+        #         print(step, valid_loss_out)
+        #         summary_valid_writer.add_summary(rs2, step)
+        #     # ==============/ 保存summary /==============
+        #
+        #     # ================保存模型====================
+        #     if step % 20000 == 0:
+        #         saver.save(sess, os.path.join(train_dir, 'model.ckpt'), global_step=step)
+        #         if step == init_step + 10000 * 42:
+        #             break
+        #     # ===============/保存模型/===================
+        # # ===========================/ 训练阶段 /===========================
 
-        for step in range(init_step, init_step + 10000001):
-            [loss_out, _] = sess.run([loss, optimizer], feed_dict={handle: train_iterator_handle, keep_prob: the_keep_prob})
-            # =============== 保存summary ===============
-            if step % 99 == 0:
-                [rs1, train_loss_out] = sess.run([merged, loss], feed_dict={handle: train_iterator_handle, keep_prob: the_keep_prob})
-                print(step, train_loss_out)
-                summary_train_writer.add_summary(rs1, step)
-            elif step % 100 == 0:
-                [rs2, valid_loss_out] = sess.run([merged, loss], feed_dict={handle: valid_iterator_handle, keep_prob: the_keep_prob})
-                print(step, valid_loss_out)
-                summary_valid_writer.add_summary(rs2, step)
-            # ==============/ 保存summary /==============
 
-            # ================保存模型====================
-            if step % 100000 == 0:
-                saver.save(sess, os.path.join(train_dir, 'model.ckpt'), global_step=step)
-                if step == init_step + 10000 * 50:
-                    break
-            # ===============/保存模型/===================
+        # ============================ 验证阶段 ============================
+        for step in range(0, 25, 5):
+            [logits_out, loss_out, model_preds_out, real_labels_out] = sess.run([logits, loss, model_preds, real_labels], feed_dict={handle: valid_iterator_handle, keep_prob: 1.0})
+            print('logits:')
+            print(logits_out[0:5])
+            print('model_preds_out:')
+            print(model_preds_out[0:5])
+            print('real_labels_out:')
+            print(real_labels_out[0:5])
+            print('==================================================')
+        # ===========================/ 验证阶段 /===========================
+
+
+        # ============================ 预测阶段 ============================
+
+        # ===========================/ 预测阶段 /===========================
 
         summary_train_writer.close()
         summary_valid_writer.close()

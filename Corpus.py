@@ -64,7 +64,7 @@ def ind_task(args):
                     catch_words.append(token_index)
             if len(catch_words) > 0:
                 out_doc_list.append([id, catch_words, label])
-        print('end multiprocess.')
+        print('end multiprocess %d.' % (proc_id))
         return out_doc_list
     else:
         for i, (id, comment) in enumerate(zip(doc_ids, cut_docs)):
@@ -234,7 +234,11 @@ class CorpusBleach(object):
                       str(row['others_overall_experience']),
                       str(row['others_willing_to_consume_again'])
                        ]
-            label_list.append('||'.join(labels))
+            if labels[0] != 'nan':
+                label_list.append('||'.join(labels))
+            else:
+                labels = ['-1' for _ in range(20)]
+                label_list.append('||'.join(labels))
         self.docs.insert(0, 'label_list', label_list)
 
 
@@ -450,77 +454,81 @@ class CorpusLoader(object):
 if __name__ == '__main__':
     # ## 对语料进行预处理，未分词
     # cps = CorpusBleach(global_configs.raw_corpus_path)
-    # # print(cps.docs.describe())
-    # # print(cps.docs.head())
     # cps.flow_process('./data_preprocess/emotion_dict.txt')
-    # print(cps.docs.iloc[982])
     # cps.docs.to_csv(global_configs.preprocessed_corpus_path, index=False, encoding='utf-8', sep=',')
-
-
+    #
+    #
+    # # # 对预处理后的语料进行分词并构造词典，只在训练集上用一次
+    # # cps = CorpusBleach(global_configs.preprocessed_corpus_path, mode=1, vocab_path=global_configs.vocab_path)
+    # # cps.init_vocab()
+    # # cps.docs.to_csv(global_configs.cutted_corpus_path, index=False, encoding='utf-8', sep=',')
+    # # cps.save_vocab(global_configs.vocab_path)
+    #
+    #
     # # 对预处理后的语料进行分词
-    # cps = CorpusBleach(global_configs.preprocessed_corpus_path,mode=0, vocab_path=global_configs.vocab_path)
-    # cps.init_vocab()
+    # cps = CorpusBleach(global_configs.preprocessed_corpus_path,mode=1, vocab_path=global_configs.vocab_path)
+    # cps.word_cut()
     # cps.docs.to_csv(global_configs.cutted_corpus_path, index=False, encoding='utf-8', sep=',')
-    # cps.save_vocab(global_configs.vocab_path)
     #
     # # 分词后的语料索引化
     # cps = CorpusBleach(global_configs.cutted_corpus_path, mode=1, vocab_path=global_configs.vocab_path)
     # cps.index_corpus_and_save(global_configs.indexed_corpus_path)
-
-
-    # # 每个评论词量的统计
+    #
+    #
+    # # # 每个评论词量的统计
+    # # cps = CorpusBleach(global_configs.indexed_corpus_path, mode=2, vocab_path=global_configs.vocab_path)
+    # # bottles = {'10': 0.0, '20': 0.0, '50': 0.0, '100': 0.0, '200': 0.0, '300': 0.0, '400': 0.0, '500': 0.0, '500+': 0.0}
+    # # tot_num = len(cps.ind_docs)
+    # # tot_word_num = 0.0
+    # # for line in cps.ind_docs:
+    # #     doc_len = len(line)
+    # #     tot_word_num += doc_len
+    # #     if doc_len <= 10:
+    # #         bottles['10'] += 1
+    # #     elif doc_len > 10 and doc_len <= 20:
+    # #         bottles['20'] += 1
+    # #     elif doc_len > 20 and doc_len <= 50:
+    # #         bottles['50'] += 1
+    # #     elif doc_len > 50 and doc_len <= 100:
+    # #         bottles['100'] += 1
+    # #     elif doc_len > 100 and doc_len <= 200:
+    # #         bottles['200'] += 1
+    # #     elif doc_len > 200 and doc_len <= 300:
+    # #         bottles['300'] += 1
+    # #     elif doc_len > 300 and doc_len <= 400:
+    # #         bottles['400'] += 1
+    # #     elif doc_len > 400 and doc_len <= 500:
+    # #         bottles['500'] += 1
+    # #     elif doc_len > 500:
+    # #         bottles['500+'] += 1
+    # # print(tot_word_num / tot_num)
+    # # for k, v in bottles.items():
+    # #     print('k: %s, v: %f, per: %f' % (k, v, v / tot_num))
+    #
+    #
+    #
+    #
+    # # 索引语料生成tfrecord
     # cps = CorpusBleach(global_configs.indexed_corpus_path, mode=2, vocab_path=global_configs.vocab_path)
-    # bottles = {'10': 0.0, '20': 0.0, '50': 0.0, '100': 0.0, '200': 0.0, '300': 0.0, '400': 0.0, '500': 0.0, '500+': 0.0}
-    # tot_num = len(cps.ind_docs)
-    # tot_word_num = 0.0
-    # for line in cps.ind_docs:
-    #     doc_len = len(line)
-    #     tot_word_num += doc_len
-    #     if doc_len <= 10:
-    #         bottles['10'] += 1
-    #     elif doc_len > 10 and doc_len <= 20:
-    #         bottles['20'] += 1
-    #     elif doc_len > 20 and doc_len <= 50:
-    #         bottles['50'] += 1
-    #     elif doc_len > 50 and doc_len <= 100:
-    #         bottles['100'] += 1
-    #     elif doc_len > 100 and doc_len <= 200:
-    #         bottles['200'] += 1
-    #     elif doc_len > 200 and doc_len <= 300:
-    #         bottles['300'] += 1
-    #     elif doc_len > 300 and doc_len <= 400:
-    #         bottles['400'] += 1
-    #     elif doc_len > 400 and doc_len <= 500:
-    #         bottles['500'] += 1
-    #     elif doc_len > 500:
-    #         bottles['500+'] += 1
-    # print(tot_word_num / tot_num)
-    # for k, v in bottles.items():
-    #     print('k: %s, v: %f, per: %f' % (k, v, v / tot_num))
+    # cps.make_tfrecord(output_file_path=global_configs.tfrecord_corpus_path, max_len=400)
 
 
+    # 检查生成的tfrecord。dataset 取数据
+    data_batch_size = 100
+    train_tfrecord_path_list = [global_configs.tfrecord_corpus_path]
+    dataset_loader = CorpusLoader(train_tfrecord_path_list, batch_size=data_batch_size, repeat_epoch_num=5, shuffle_buffer_size=None)
+    train_dataset = dataset_loader.launch_tfrecorddataset()
+    train_iterator = train_dataset.make_one_shot_iterator()
+
+    id_batch, effect_len_batch, label_batch, comment_batch = train_iterator.get_next()
+    id_batch = tf.reshape(id_batch, [data_batch_size])
+    effect_len_batch = tf.reshape(effect_len_batch, [data_batch_size])
+    # label_batch = tf.reshape(label_batch, [20, data_batch_size])  # 出来反正是个2维的，不用reshape成1维
 
 
-    # 索引语料生成tfrecord
-    cps = CorpusBleach(global_configs.indexed_corpus_path, mode=2, vocab_path=global_configs.vocab_path)
-    cps.make_tfrecord(output_file_path=global_configs.tfrecord_corpus_path, max_len=400)
-
-
-    # # 检查生成的tfrecord。dataset 取数据
-    # data_batch_size = 100
-    # train_tfrecord_path_list = [global_configs.tfrecord_corpus_path]
-    # dataset_loader = CorpusLoader(train_tfrecord_path_list, batch_size=data_batch_size, repeat_epoch_num=5, shuffle_buffer_size=None)
-    # train_dataset = dataset_loader.launch_tfrecorddataset()
-    # train_iterator = train_dataset.make_one_shot_iterator()
-    #
-    # id_batch, effect_len_batch, label_batch, comment_batch = train_iterator.get_next()
-    # id_batch = tf.reshape(id_batch, [data_batch_size])
-    # effect_len_batch = tf.reshape(effect_len_batch, [data_batch_size])
-    # # label_batch = tf.reshape(label_batch, [20, data_batch_size])  # 出来反正是个2维的，不用reshape成1维
-    #
-    #
-    # with tf.Session() as sess:
-    #     id_batch_out, effect_len_batch_out, label_batch_out, comment_batch_out = sess.run([id_batch, effect_len_batch, label_batch, comment_batch])
-    #     print(id_batch_out)
-    #     print(effect_len_batch_out)
-    #     print(label_batch_out)
+    with tf.Session() as sess:
+        id_batch_out, effect_len_batch_out, label_batch_out, comment_batch_out = sess.run([id_batch, effect_len_batch, label_batch, comment_batch])
+        print(id_batch_out)
+        print(effect_len_batch_out)
+        print(label_batch_out)
+        print(comment_batch_out)
