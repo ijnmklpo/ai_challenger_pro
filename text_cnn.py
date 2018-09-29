@@ -35,7 +35,7 @@ learning_rate = 0.01
 
 '''
 
-model_root_dir = './models/text_cnn/version1'
+model_root_dir = './models/text_cnn/version2'
 train_dir = os.path.join(model_root_dir, 'model_files')
 summary_dir = os.path.join(model_root_dir, 'summarys')
 summary_train_dir = os.path.join(summary_dir, 'train')
